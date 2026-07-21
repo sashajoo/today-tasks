@@ -69,6 +69,13 @@ same list on each. Everything is editable by clicking; nothing needs the termina
 | Hide it | Click the `–`, or use the ✓ menu bar icon |
 | Quit | ✓ menu bar icon → Quit Today Tasks |
 
+### Sizing
+
+The panels widen and narrow on their own to fit your longest task, within
+sensible limits (never past about a third of the display). Anything longer than
+that wraps onto extra lines instead of being cut off, and the row grows to hold
+it. You can still drag an edge to size a panel yourself.
+
 ### Multiple displays
 
 Every screen gets its own copy, all showing the same tasks. Edit or check

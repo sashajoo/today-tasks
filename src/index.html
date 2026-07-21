@@ -89,7 +89,7 @@
 
   /* ---- station rows ---- */
   .st {
-    display: flex; align-items: center; padding: 9px 4px 9px 0;
+    display: flex; align-items: flex-start; padding: 8px 4px 8px 0;
     position: relative; border-radius: 10px;
     animation: arrive 0.25s cubic-bezier(0.3, 1.2, 0.6, 1);
   }
@@ -99,13 +99,13 @@
   .st.dragover { box-shadow: 0 -2px 0 0 var(--amber); }
   .tstamp {
     width: 42px; flex-shrink: 0; text-align: right; padding-right: 12px;
-    font-size: 10px; font-weight: 620; letter-spacing: 0.04em;
+    font-size: 10px; font-weight: 620; letter-spacing: 0.04em; line-height: 20px;
     color: var(--ink-faint); font-variant-numeric: tabular-nums;
   }
   .st.carried .tstamp { color: var(--stale); }
   .node {
     width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
-    margin: 0 14px 0 6.5px; border: 1.6px solid var(--ink-faint);
+    margin: 4px 14px 0 6.5px; border: 1.6px solid var(--ink-faint);
     background: var(--chip); cursor: pointer; padding: 0;
     position: relative; z-index: 1;
     transition: background 0.2s, border-color 0.2s, transform 0.12s;
@@ -124,18 +124,18 @@
   }
   .textwrap { flex: 1; min-width: 0; position: relative; }
   .sttxt {
-    width: 100%; border: none; background: transparent; outline: none;
-    font: inherit; font-size: 13.5px; font-weight: 550; color: var(--ink);
-    user-select: text; -webkit-user-select: text; padding: 2px 0;
+    display: block; width: 100%; border: none; background: transparent;
+    outline: none; resize: none; overflow: hidden;
+    font: inherit; font-size: 13.5px; font-weight: 550; line-height: 1.35;
+    color: var(--ink); padding: 0; margin: 0;
+    user-select: text; -webkit-user-select: text;
+    word-break: break-word; overflow-wrap: anywhere;
   }
   .st.soon .sttxt { color: var(--ink-soft); font-weight: 500; }
-  .textwrap::after {
-    content: ""; position: absolute; left: 0; top: 53%; height: 1.3px;
-    width: 0%; background: var(--ink-faint); transition: width 0.3s ease;
-    pointer-events: none;
+  .st.past .sttxt {
+    color: var(--ink-faint); font-weight: 480;
+    text-decoration: line-through; text-decoration-thickness: 1.2px;
   }
-  .st.past .textwrap::after { width: 100%; }
-  .st.past .sttxt { color: var(--ink-faint); font-weight: 480; }
 
   /* note disclosure + drawer */
   .noteBtn {
@@ -349,17 +349,33 @@ function makeStation(t, arrIdx, kind) {
 
   const wrap = document.createElement('div');
   wrap.className = 'textwrap';
-  const input = document.createElement('input');
+  const input = document.createElement('textarea');
   input.className = 'sttxt';
-  input.type = 'text';
+  input.rows = 1;
   input.value = t.text;
+  const grow = () => {
+    input.style.height = 'auto';
+    input.style.height = input.scrollHeight + 'px';
+  };
+  input.addEventListener('input', grow);
   input.addEventListener('change', () => {
     t.text = input.value.trim();
     if (!t.text) tasks.splice(arrIdx, 1);
     save(); render();
   });
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
+  input.addEventListener('blur', () => {
+    const v = input.value.trim();
+    if (v !== t.text) {
+      t.text = v;
+      if (!t.text) tasks.splice(arrIdx, 1);
+      save(); render();
+    }
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+  });
   wrap.appendChild(input);
+  requestAnimationFrame(grow);
 
   const grip = document.createElement('span');
   grip.className = 'grip';
@@ -508,6 +524,7 @@ function render() {
   if (allDone && !wasAllDone) confettiBurst();
   wasAllDone = allDone;
   reportHotZones();
+  requestWidth();
 }
 
 const newInput = document.getElementById('newtask');
@@ -519,6 +536,25 @@ newInput.addEventListener('keydown', (e) => {
   newInput.value = '';
   save(); render();
 });
+
+/* ---- ask the app to widen/narrow to fit the longest task ---- */
+const LEFT_GUTTER = 74;   // timestamp column + node
+const RIGHT_GUTTER = 56;  // note arrow, grip, delete
+let measureCtx = null;
+function requestWidth() {
+  if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
+  const probe = document.querySelector('.sttxt');
+  const cs = probe ? getComputedStyle(probe) : null;
+  measureCtx.font = cs
+    ? cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily
+    : '550 13.5px -apple-system';
+  let widest = 0;
+  for (const t of tasks) {
+    const w = measureCtx.measureText(t.text || '').width;
+    if (w > widest) widest = w;
+  }
+  post('width', String(Math.ceil(widest + LEFT_GUTTER + RIGHT_GUTTER)));
+}
 
 /* ---- click-through: tell the app which rectangles are interactive ---- */
 function reportHotZones() {
