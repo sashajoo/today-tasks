@@ -11,14 +11,16 @@ Built by Sasha Zhu.
   ─────────────────────────────────────────────────
   CARRIED OVER · 1 ────────────────────────────────
    2d  ○  Submit to SUO                         ▶
-  TODAY ───────────────────────────────────────────
-       ○  Thaw T cells
-       ○  Thaw KDM1A KO cells
-       ○  Prepare ELISA samples                 ▶
-       +  Add a task…
+  ╭───────────────────────────────────────────────╮
+  │ TODAY ─────────────────────────────────────── │  <- highlighted band
+  │      ○  Thaw T cells                          │
+  │      ○  Thaw KDM1A KO cells                   │
+  │      ○  Prepare ELISA samples              ▶  │
+  │      +  Add a task…                           │
+  ╰───────────────────────────────────────────────╯
   UPCOMING · 2 ────────────────────────────────────
   WED 22
-     ⚬  Draft SUO abstract figures
+       ⚬  Draft SUO abstract figures
   DONE · 2 ────────────────────────────────────────
   10:04 ✓  Email the draft
 ```
@@ -79,6 +81,9 @@ Tasks are grouped by date, not by priority:
 
 At midnight, finished tasks clear out and unfinished ones move to "Carried over."
 
+**Today is highlighted** with a warm band and brighter text, so the thing you're
+actually working on stands out from what's carried over or coming up.
+
 ### Notes and links
 
 Every task has a drawer (the `▶`) for free text: reagent details, sample counts,
@@ -109,6 +114,43 @@ today note 5 "24h + 48h timepoints"  set a note (URLs allowed)
 today note+ 5 "https://notion.so/…"  append a line to the note
 today note- 5                        clear the note
 ```
+
+---
+
+## Apple Reminders sync (optional)
+
+You can link the widget to one Reminders list. It syncs both ways, so tasks you
+add on your iPhone show up on the desktop, and anything you check off in either
+place is done in both.
+
+```
+today sync list "Tasks"     link a list and sync immediately
+today sync                  sync now
+today sync status           show what's linked
+today sync off              stop automatic syncing (today sync on resumes it)
+```
+
+Once linked, the widget syncs by itself every minute.
+
+The first time it runs, macOS asks for permission to control Reminders — say yes.
+If you miss the prompt, enable it in **System Settings → Privacy & Security →
+Automation**.
+
+**What syncs**
+
+| Change | Result |
+| --- | --- |
+| New task in the widget | New reminder in the list |
+| New reminder in Reminders | New task in the widget |
+| Checked off in either place | Marked done in both |
+| Renamed or rescheduled in the widget | Reminder updated to match |
+| Reminder deleted in Reminders.app | Task disappears from the widget |
+
+Notes and links stay in the widget only; Reminders doesn't get them.
+
+**Pick the list carefully** — if you share a list with someone (a household or
+partner list), everything on your widget will appear in their Reminders too. Use a
+personal list unless you want that.
 
 ---
 

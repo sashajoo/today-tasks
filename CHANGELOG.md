@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.1 — 2026-07-21
+
+- **Today is highlighted.** The Today section sits in a warm amber band with
+  brighter text and a labeled header, so it reads as the focus rather than one
+  group among four.
+- **Apple Reminders sync (opt-in, two-way).** Link one list with
+  `today sync list "NAME"`; the widget then syncs every minute. Creation,
+  completion, renaming, rescheduling, and deletion all propagate. Notes and links
+  stay local to the widget.
+- Sync safety: an exclusive file lock stops the manual and automatic syncs from
+  racing each other, titles are matched so an existing reminder is adopted rather
+  than duplicated, and an empty answer from Reminders.app is re-checked before
+  it's believed (it returns nothing while busy, which previously caused duplicate
+  reminders).
+
 ## 1.0 — 2026-07-21
 
 First shareable version.

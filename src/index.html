@@ -64,6 +64,20 @@
   .sec.warn { color: var(--stale); }
   .sec .n { font-weight: 700; opacity: 0.75; }
 
+  /* today = the focus band */
+  #todayband {
+    position: relative; margin: 6px 4px 2px 8px; padding: 1px 0 3px;
+    border-radius: 14px;
+    background: linear-gradient(to right,
+      rgba(247,176,106,0) 0px, rgba(247,176,106,0) 40px,
+      rgba(247,176,106,0.17) 62px, rgba(247,176,106,0.06) 76%,
+      rgba(247,176,106,0) 100%);
+  }
+  #secToday { color: var(--amber); padding-top: 9px; }
+  #secToday::after { background: linear-gradient(90deg, rgba(247,176,106,0.45), transparent); }
+  #todayband .sttxt { font-weight: 600; }
+  #todayband .node { border-color: rgba(247,176,106,0.75); }
+
   /* ---- station rows ---- */
   .st {
     display: flex; align-items: center; padding: 9px 4px 9px 0;
@@ -202,15 +216,17 @@
     <div id="secCarried" class="sec warn" hidden>CARRIED OVER <span class="n"></span></div>
     <div id="carried"></div>
 
-    <div id="secToday" class="sec" hidden>TODAY</div>
-    <div id="active"></div>
-    <div id="addst">
-      <span class="tstamp">&nbsp;</span>
-      <span id="addplus">+</span>
-      <input id="newtask" type="text" placeholder="Add a task&#8230;" autocomplete="off">
+    <div id="todayband">
+      <div id="secToday" class="sec">TODAY</div>
+      <div id="active"></div>
+      <div id="addst">
+        <span class="tstamp">&nbsp;</span>
+        <span id="addplus">+</span>
+        <input id="newtask" type="text" placeholder="Add a task&#8230;" autocomplete="off">
+      </div>
+      <div id="emptyhint" hidden>Nothing on today yet</div>
+      <div id="alldone" hidden>All done &#10024;</div>
     </div>
-    <div id="emptyhint" hidden>Nothing on today yet</div>
-    <div id="alldone" hidden>All done &#10024;</div>
 
     <div id="secSoon" class="sec" hidden>UPCOMING <span class="n"></span></div>
     <div id="soon"></div>
@@ -446,7 +462,6 @@ function render() {
   els.count.textContent = (nToday + nDoneToday) ? nDoneToday + ' of ' + (nToday + nDoneToday) + ' done' : '';
   els.secCarried.hidden = !groups.carried.length;
   els.secCarried.querySelector('.n').textContent = groups.carried.length ? '· ' + groups.carried.length : '';
-  els.secToday.hidden = !(groups.carried.length && groups.today.length);
   els.secSoon.hidden = !groups.soon.length;
   els.secSoon.querySelector('.n').textContent = groups.soon.length ? '· ' + groups.soon.length : '';
   els.secDone.hidden = !groups.past.length;
