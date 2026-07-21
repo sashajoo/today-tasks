@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+"""today — CLI for the Today Tasks widget.
+
+  today                    list tasks
+  today add TEXT...        add a task
+  today done N [N...]      check off task N (number from `today`)
+  today undo N [N...]      un-check task N
+  today rm N [N...]        delete task N
+  today clear              remove all checked-off tasks
+  today note N TEXT...     set task N's note (links/URLs allowed)
+  today note+ N TEXT...    append a line to task N's note
+  today note- N            clear task N's note
+  today when N WHEN        reschedule: today | tomorrow | +3 | 2026-07-30
+
+`today add` accepts the same WHEN as a trailing flag:
+  today add "Order primers" --when tomorrow
+  today add "Passage PDOs" --when +3
+
+The widget watches the data file and updates within ~2 seconds.
+"""
+
+import datetime
+import json
+import os
+import sys
+import time
+
+DATA_DIR = os.path.expanduser("~/Library/Application Support/TodayTasks")
+DATA_FILE = os.path.join(DATA_DIR, "tasks.json")
+
+
+def today_str():
+    return datetime.date.today().isoformat()
+
+
+def load():
+    try:
+        with open(DATA_FILE) as f:
+            state = json.load(f)
+    except Exception:
+        state = {"date": today_str(), "tasks": [], "pinned": True}
+    if state.get("date") != today_str():
+        state["tasks"] = [t for t in state.get("tasks", []) if not t.get("done")]
+        state["date"] = today_str()
+    state.setdefault("tasks", [])
+    for t in state["tasks"]:
+        t.setdefault("due", state.get("date", today_str()))
+    return state
+
+
+def save(state):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    tmp = DATA_FILE + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(state, f, indent=2)
+    os.replace(tmp, DATA_FILE)
+
+
+def parse_when(w):
+    w = w.strip().lower()
+    today = datetime.date.today()
+    if w in ("today", "now"):
+        return today.isoformat()
+    if w in ("tomorrow", "tmrw"):
+        return (today + datetime.timedelta(days=1)).isoformat()
+    if w.startswith(("+", "-")):
+        try:
+            return (today + datetime.timedelta(days=int(w))).isoformat()
+        except ValueError:
+            pass
+    try:
+        return datetime.date.fromisoformat(w).isoformat()
+    except ValueError:
+        sys.exit("Don't understand when=%r (use today|tomorrow|+3|YYYY-MM-DD)" % w)
+
+
+def show(state):
+    tasks = state["tasks"]
+    if not tasks:
+        print("No tasks.")
+        return
+    today = today_str()
+    buckets = [
+        ("CARRIED OVER", lambda t: not t.get("done") and t.get("due", today) < today),
+        ("TODAY", lambda t: not t.get("done") and t.get("due", today) == today),
+        ("UPCOMING", lambda t: not t.get("done") and t.get("due", today) > today),
+        ("DONE", lambda t: t.get("done")),
+    ]
+    open_n = sum(1 for t in tasks if not t.get("done") and t.get("due", today) <= today)
+    done_n = sum(1 for t in tasks if t.get("done"))
+    print("Today  (%d done, %d open)" % (done_n, open_n))
+    for label, pred in buckets:
+        rows = [(i, t) for i, t in enumerate(tasks, 1) if pred(t)]
+        if not rows:
+            continue
+        print("\n  %s" % label)
+        for i, t in rows:
+            mark = "x" if t.get("done") else " "
+            due = t.get("due", today)
+            tag = ""
+            if not t.get("done") and due != today:
+                tag = "  (%s)" % due
+            print("  %2d. [%s] %s%s" % (i, mark, t.get("text", ""), tag))
+            for line in (t.get("note") or "").splitlines():
+                if line.strip():
+                    print("        | %s" % line.strip())
+
+
+def pick(state, args):
+    idxs = []
+    for a in args:
+        try:
+            n = int(a)
+        except ValueError:
+            sys.exit("Not a task number: %r (run `today` to see numbers)" % a)
+        if not 1 <= n <= len(state["tasks"]):
+            sys.exit("No task #%d (there are %d tasks)" % (n, len(state["tasks"])))
+        idxs.append(n - 1)
+    return idxs
+
+
+def main():
+    state = load()
+    args = sys.argv[1:]
+    cmd = args[0] if args else "list"
+
+    if cmd == "list" or not args:
+        show(state)
+        return
+    if cmd == "add":
+        rest = args[1:]
+        due = today_str()
+        for flag in ("--when", "--on", "--in"):
+            if flag in rest:
+                k = rest.index(flag)
+                if k + 1 >= len(rest):
+                    sys.exit("Usage: today add TEXT %s WHEN" % flag)
+                due = parse_when(rest[k + 1])
+                rest = rest[:k] + rest[k + 2:]
+        text = " ".join(rest).strip()
+        if not text:
+            sys.exit("Usage: today add TEXT [--when tomorrow|+3|YYYY-MM-DD]")
+        state["tasks"].append({
+            "id": format(int(time.time() * 1000), "x"),
+            "text": text, "done": False, "due": due,
+        })
+    elif cmd in ("done", "undo"):
+        for i in pick(state, args[1:]):
+            state["tasks"][i]["done"] = cmd == "done"
+            if cmd == "done":
+                state["tasks"][i]["doneAt"] = time.strftime("%H:%M")
+            else:
+                state["tasks"][i].pop("doneAt", None)
+    elif cmd == "rm":
+        for i in sorted(pick(state, args[1:]), reverse=True):
+            del state["tasks"][i]
+    elif cmd == "clear":
+        state["tasks"] = [t for t in state["tasks"] if not t.get("done")]
+    elif cmd == "when":
+        if len(args) < 3:
+            sys.exit("Usage: today when N today|tomorrow|+3|YYYY-MM-DD")
+        i = pick(state, args[1:2])[0]
+        state["tasks"][i]["due"] = parse_when(args[2])
+    elif cmd in ("note", "note+", "note-"):
+        if len(args) < 2:
+            sys.exit("Usage: today %s N [TEXT...]" % cmd)
+        i = pick(state, args[1:2])[0]
+        text = " ".join(args[2:]).strip()
+        if cmd == "note-":
+            state["tasks"][i].pop("note", None)
+        elif cmd == "note+":
+            old = state["tasks"][i].get("note", "")
+            state["tasks"][i]["note"] = (old + "\n" + text).strip() if old else text
+        else:
+            if not text:
+                sys.exit("Usage: today note N TEXT")
+            state["tasks"][i]["note"] = text
+    else:
+        sys.exit(__doc__.strip())
+
+    save(state)
+    show(state)
+
+
+if __name__ == "__main__":
+    main()
