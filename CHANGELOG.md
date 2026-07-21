@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2 — 2026-07-21
+
+- **LED dot-matrix progress meter** under the header: a 7-row dot grid that fills
+  as the day gets done, with the percentage rendered in real 5x7 LED digits.
+  The fill eases toward its new value when you check something off. Drawn on
+  canvas in the widget's amber; swap two constants for green phosphor.
+
 ## 1.1 — 2026-07-21
 
 - **Today is highlighted.** The Today section sits in a warm amber band with

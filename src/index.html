@@ -49,6 +49,15 @@
   .iconbtn:hover { background: var(--hover); color: var(--ink-soft); }
   .iconbtn.active { color: var(--amber); }
 
+  /* ---- LED dot-matrix progress ---- */
+  #ledwrap {
+    margin: 2px 14px 8px 18px; padding: 5px 8px; border-radius: 5px;
+    background: rgba(12,8,5,0.5);
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,176,106,0.1);
+    flex-shrink: 0;
+  }
+  #led { display: block; width: 100%; height: 26px; }
+
   /* ---- scroll body ---- */
   #tl { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; padding: 0 12px 14px 0; }
   #tl::-webkit-scrollbar { width: 4px; }
@@ -210,6 +219,8 @@
     <button class="iconbtn" id="pinbtn" title="Float above other windows">&#9733;</button>
     <button class="iconbtn" id="hidebtn" title="Hide (reopen from the &#10003; menu-bar icon)">&#8211;</button>
   </div>
+
+  <div id="ledwrap"><canvas id="led"></canvas></div>
 
   <div id="tl">
     <div id="spine"></div>
@@ -491,6 +502,9 @@ function render() {
     .slice().sort((a, b) => (tasks[b].doneAt || '').localeCompare(tasks[a].doneAt || ''))
     .forEach(i => makeStation(tasks[i], i, 'past').forEach(e => els.done.appendChild(e)));
 
+  const totalToday = nToday + nDoneToday;
+  setLED(totalToday ? nDoneToday / totalToday : 0);
+
   if (allDone && !wasAllDone) confettiBurst();
   wasAllDone = allDone;
   reportHotZones();
@@ -523,6 +537,97 @@ function reportHotZones() {
 }
 addEventListener('resize', reportHotZones);
 document.getElementById('tl').addEventListener('scroll', reportHotZones);
+
+/* ---- LED dot-matrix progress meter ---- */
+const GLYPHS = {
+  '0': ['01110','10001','10011','10101','11001','10001','01110'],
+  '1': ['00100','01100','00100','00100','00100','00100','01110'],
+  '2': ['01110','10001','00001','00010','00100','01000','11111'],
+  '3': ['11111','00010','00100','00010','00001','10001','01110'],
+  '4': ['00010','00110','01010','10010','11111','00010','00010'],
+  '5': ['11111','10000','11110','00001','00001','10001','01110'],
+  '6': ['00110','01000','10000','11110','10001','10001','01110'],
+  '7': ['11111','00001','00010','00100','01000','01000','01000'],
+  '8': ['01110','10001','10001','01110','10001','10001','01110'],
+  '9': ['01110','10001','10001','01111','00001','00010','01100'],
+  '%': ['11001','11011','00010','00100','01000','11011','10011'],
+};
+const LED_ON = '#f7b06a', LED_OFF = 'rgba(247,176,106,0.13)';
+let ledTarget = 0, ledShown = 0, ledAnimating = false;
+
+function drawLED() {
+  const canvas = document.getElementById('led');
+  const wrap = document.getElementById('ledwrap');
+  const dpr = devicePixelRatio || 1;
+  const cssW = wrap.clientWidth - 16, cssH = 26;
+  if (cssW < 40) return;
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const ROWS = 7, PITCH = 3.4, R = 1.15;
+  const gridH = (ROWS - 1) * PITCH;
+  const top = (cssH - gridH) / 2;
+
+  // right-hand readout, e.g. "33%"
+  const label = Math.round(ledShown * 100) + '%';
+  const glyphCols = [...label].reduce((n, ch) => n + (GLYPHS[ch] ? 6 : 0), 0);
+  const readoutW = glyphCols * PITCH;
+  const barW = cssW - readoutW - PITCH * 2;
+  const cols = Math.max(4, Math.floor(barW / PITCH));
+  const filled = Math.round(cols * ledShown);
+
+  const dot = (cx, cy, on) => {
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, 7);
+    if (on) {
+      ctx.fillStyle = LED_ON;
+      ctx.shadowColor = LED_ON;
+      ctx.shadowBlur = 4;
+    } else {
+      ctx.fillStyle = LED_OFF;
+      ctx.shadowBlur = 0;
+    }
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  };
+
+  for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < ROWS; r++) {
+      dot(R + c * PITCH, top + r * PITCH, c < filled);
+    }
+  }
+
+  let x = cols * PITCH + PITCH * 2;
+  for (const ch of label) {
+    const g = GLYPHS[ch];
+    if (!g) continue;
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < 5; c++) {
+        if (g[r][c] === '1') dot(R + x + c * PITCH, top + r * PITCH, true);
+      }
+    }
+    x += 6 * PITCH;
+  }
+}
+
+function setLED(pct) {
+  ledTarget = Math.max(0, Math.min(1, pct || 0));
+  if (ledAnimating) return;
+  ledAnimating = true;
+  (function step() {
+    const d = ledTarget - ledShown;
+    if (Math.abs(d) < 0.002) {
+      ledShown = ledTarget; drawLED(); ledAnimating = false; return;
+    }
+    ledShown += d * 0.14;
+    drawLED();
+    requestAnimationFrame(step);
+  })();
+}
+addEventListener('resize', drawLED);
 
 function confettiBurst() {
   const canvas = document.getElementById('confetti');

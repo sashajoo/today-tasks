@@ -8,6 +8,7 @@ Built by Sasha Zhu.
 
 ```
   Today  Tue, Jul 21              2 of 7 done   ★  –
+  ▮▮▮▮▮▮▮▮▮▮▮▮·································  33%   <- LED meter
   ─────────────────────────────────────────────────
   CARRIED OVER · 1 ────────────────────────────────
    2d  ○  Submit to SUO                         ▶
@@ -83,6 +84,9 @@ At midnight, finished tasks clear out and unfinished ones move to "Carried over.
 
 **Today is highlighted** with a warm band and brighter text, so the thing you're
 actually working on stands out from what's carried over or coming up.
+
+**The LED meter** under the header is a dot-matrix progress display showing how
+much of today is finished. It sweeps up whenever you check something off.
 
 ### Notes and links
 
@@ -213,6 +217,10 @@ the top of `src/index.html` and re-run `./install.sh`:
 --amber: #f7b06a;   /* accent: checkmarks, links, the + */
 --stale: #e08a6a;   /* carried-over items */
 ```
+
+The LED meter has its own two colors, set in the script near `const LED_ON`.
+For the classic green-phosphor look, use `#39ff88` for `LED_ON` and
+`rgba(57,255,136,0.13)` for `LED_OFF`.
 
 If your wallpaper is light rather than dark, lower the darkness of the wash in the
 `body { background: … }` rule just below.
