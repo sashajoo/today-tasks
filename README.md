@@ -50,8 +50,8 @@ To have it start automatically when you log in:
 
 ## Using it
 
-The widget shows up on the right side of your desktop. Everything is editable by
-clicking; nothing needs the terminal.
+The widget appears on the left edge of **every** display you have, showing the
+same list on each. Everything is editable by clicking; nothing needs the terminal.
 
 | What you want | How |
 | --- | --- |
@@ -63,11 +63,18 @@ clicking; nothing needs the terminal.
 | Add notes or a link | Hover the row, click `▶` to open its drawer |
 | Open a saved link | Click the amber 🔗 chip in the drawer |
 | Reschedule | In the drawer, click **Today**, **Tomorrow**, or **+1 week** |
-| Move the widget | Drag it by the "Today" header |
+| Move the widget | Drag it by the "Today" header (each display remembers its own spot) |
 | Resize | Drag any edge or corner |
 | Bring it in front of apps | Click the ★ (click again to send it back to the wallpaper) |
 | Hide it | Click the `–`, or use the ✓ menu bar icon |
 | Quit | ✓ menu bar icon → Quit Today Tasks |
+
+### Multiple displays
+
+Every screen gets its own copy, all showing the same tasks. Edit or check
+something off on one and the others update immediately. Each display remembers
+where you put its panel and how big you made it, and plugging or unplugging a
+monitor rebuilds them automatically — no restart needed.
 
 ### The sections
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3 — 2026-07-21
+
+- **Every display gets a panel.** One widget per screen, all showing the same
+  list and updating together as you edit. Each display keeps its own position
+  and size, keyed to that monitor's geometry, and connecting or disconnecting a
+  monitor rebuilds the panels on the fly.
+- **Docks to the left edge** by default instead of the right, which also keeps it
+  clear of desktop icons.
+- Hiding, showing, and the pin toggle now apply to all panels at once.
+
 ## 1.2 — 2026-07-21
 
 - **LED dot-matrix progress meter** under the header: a 7-row dot grid that fills
