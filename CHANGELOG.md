@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4 — 2026-07-21
+
+- **Task text no longer gets cut off.** Rows use auto-growing text fields, so a
+  long task wraps onto more lines and the row grows to fit it.
+- **Panels size themselves to the content**, widening or narrowing to fit the
+  longest task, capped at 520px or a third of the display, whichever is smaller.
+- Fix: panels were being pulled back onto the main display whenever they
+  resized. Each panel is now bound to its display and put back if it strays,
+  checked once a second.
+
 ## 1.3 — 2026-07-21
 
 - **Every display gets a panel.** One widget per screen, all showing the same

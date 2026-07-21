@@ -149,7 +149,7 @@ class AppDelegate(NSObject):
 
             config = WKWebViewConfiguration.alloc().init()
             ucc = config.userContentController()
-            for name in ("save", "pin", "hide", "drag", "open", "zones"):
+            for name in ("save", "pin", "hide", "drag", "open", "zones", "width"):
                 ucc.addScriptMessageHandler_name_(self, name)
             wv = WKWebView.alloc().initWithFrame_configuration_(
                 w.contentView().bounds(), config
@@ -163,7 +163,9 @@ class AppDelegate(NSObject):
             )
 
             self.panels.append({"window": w, "webview": wv, "zones": None,
-                                "ct": False, "index": i, "want": w.frame()})
+                                "ct": False, "index": i, "want": w.frame(),
+                                "screenFrame": screen.frame(),
+                                "visibleFrame": sf})
 
         self.applyPinned()
         if not self.hidden:
@@ -174,6 +176,44 @@ class AppDelegate(NSObject):
             for p in self.panels:
                 if not NSEqualRects(p["window"].frame(), p["want"]):
                     p["window"].setFrame_display_(p["want"], True)
+
+    def fitWidth_(self, needed):
+        """Widen or narrow every panel so the longest task fits on one line,
+        within sane bounds and never past a third of the display."""
+        for p in self.panels:
+            f = p["window"].frame()
+            sf = p["visibleFrame"]
+            limit = min(520, int(sf.size.width * 0.34))
+            target = max(300, min(int(needed), limit))
+            if abs(target - f.size.width) <= 4:
+                continue
+            p["want"] = NSMakeRect(f.origin.x, f.origin.y, target, f.size.height)
+            p["window"].setFrame_display_(p["want"], True)
+        self.enforceScreens_(None)
+
+    def enforceScreens_(self, timer):
+        """Each panel belongs to one display. macOS keeps yanking borderless
+        windows back onto the main screen (on resize, on wake, on space
+        changes), so put any stray panel back where it belongs."""
+        for p in self.panels:
+            win = p["window"]
+            if not win.isVisible():
+                continue
+            f = win.frame()
+            sf, vf = p["screenFrame"], p["visibleFrame"]
+            cx = f.origin.x + f.size.width / 2.0
+            cy = f.origin.y + f.size.height / 2.0
+            on_its_screen = (
+                sf.origin.x <= cx <= sf.origin.x + sf.size.width
+                and sf.origin.y <= cy <= sf.origin.y + sf.size.height
+            )
+            if on_its_screen:
+                p["want"] = f  # she may have dragged it; respect that
+                continue
+            h = min(f.size.height, vf.size.height - 20)
+            back = NSMakeRect(vf.origin.x + 10, vf.origin.y + 10, f.size.width, h)
+            p["want"] = back
+            win.setFrame_display_(back, True)
 
     def panelForWebView_(self, webview):
         for p in self.panels:
@@ -233,6 +273,13 @@ class AppDelegate(NSObject):
             )
         )
 
+        # Keep each panel pinned to its own display.
+        self.screenTimer = (
+            NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                1.0, self, "enforceScreens:", None, True
+            )
+        )
+
         # Click-through: pass clicks to the desktop unless the cursor is over
         # an actual row/header/drawer.
         self.hitTimer = (
@@ -285,6 +332,11 @@ class AppDelegate(NSObject):
                     panel["zones"] = json.loads(str(message.body()))
                 except Exception:
                     pass
+        elif name == "width":
+            try:
+                self.fitWidth_(int(float(str(message.body()))))
+            except Exception:
+                pass
         elif name == "drag":
             panel = self.panelForWebView_(message.webView())
             event = NSApp.currentEvent()
