@@ -6,6 +6,7 @@
   as the day gets done, with the percentage rendered in real 5x7 LED digits.
   The fill eases toward its new value when you check something off. Drawn on
   canvas in the widget's amber; swap two constants for green phosphor.
+  Slim by design: a 5-row grid with a 3x5 dot font, about 13px tall.
 
 ## 1.1 — 2026-07-21
 
