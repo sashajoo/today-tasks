@@ -4,6 +4,8 @@
 import datetime
 import json
 import os
+import shutil
+import subprocess
 
 import objc
 from AppKit import (
@@ -198,6 +200,17 @@ class AppDelegate(NSObject):
             )
         )
 
+        # Apple Reminders sync, if she linked a list (runs out-of-process so a
+        # slow AppleScript can never stall the UI; results arrive via the
+        # file watcher above).
+        self.syncProc = None
+        self.syncTimer = (
+            NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                60.0, self, "runReminderSync:", None, True
+            )
+        )
+        self.runReminderSync_(None)
+
         w.makeKeyAndOrderFront_(None)
         NSApp.activateIgnoringOtherApps_(True)
 
@@ -246,6 +259,34 @@ class AppDelegate(NSObject):
         self.webview.evaluateJavaScript_completionHandler_(
             "window.setState(%s)" % payload, None
         )
+
+    # -- Apple Reminders ----------------------------------------------------
+
+    def todayCLI(self):
+        found = shutil.which("today")
+        if found:
+            return found
+        for p in ("/opt/homebrew/bin/today", "/usr/local/bin/today",
+                  os.path.expanduser("~/.local/bin/today")):
+            if os.path.exists(p):
+                return p
+        return None
+
+    def runReminderSync_(self, timer):
+        if not self.state.get("syncOn") or not self.state.get("remindersList"):
+            return
+        if self.syncProc is not None and self.syncProc.poll() is None:
+            return  # previous sync still running
+        cli = self.todayCLI()
+        if not cli:
+            return
+        try:
+            self.syncProc = subprocess.Popen(
+                [cli, "sync"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            self.syncProc = None
 
     # -- Click-through ------------------------------------------------------
 
