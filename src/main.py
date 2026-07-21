@@ -91,44 +91,49 @@ class PanelWindow(NSWindow):
 
 
 class AppDelegate(NSObject):
-    def applicationDidFinishLaunching_(self, note):
-        self.state = load_state()
-        self.file_mtime = self.currentMtime()
-        self.zones = None
-        self.click_through = False
+    # -- Panels (one per display) -------------------------------------------
+
+    def buildPanels(self):
+        """Create a panel on every screen, reusing saved frames per display."""
+        for p in self.panels:
+            p["window"].orderOut_(None)
+            p["window"].setContentView_(None)
+        self.panels = []
 
         mask = (
             NSWindowStyleMaskBorderless
             | NSWindowStyleMaskResizable
             | NSWindowStyleMaskFullSizeContentView
         )
-        self.window = (
-            PanelWindow.alloc().initWithContentRect_styleMask_backing_defer_(
+        url = NSURL.fileURLWithPath_(HTML_FILE)
+
+        for i, screen in enumerate(NSScreen.screens()):
+            sf = screen.visibleFrame()
+            w = PanelWindow.alloc().initWithContentRect_styleMask_backing_defer_(
                 NSMakeRect(0, 0, 320, 700), mask, NSBackingStoreBuffered, False
             )
-        )
-        w = self.window
-        w.setOpaque_(False)
-        w.setBackgroundColor_(NSColor.clearColor())
-        w.setHasShadow_(False)  # embedded-in-wallpaper look: no card shadow
-        w.setMovableByWindowBackground_(True)
-        w.setCollectionBehavior_(
-            NSWindowCollectionBehaviorCanJoinAllSpaces
-            | NSWindowCollectionBehaviorFullScreenAuxiliary
-        )
-        # New autosave name: resets the frame to the right-dock default once,
-        # then keeps remembering her manual moves/resizes as before.
-        w.setFrameAutosaveName_("TodayTasksPanelSpine")
-        w.setMinSize_((260, 400))
+            w.setOpaque_(False)
+            w.setBackgroundColor_(NSColor.clearColor())
+            w.setHasShadow_(False)  # embedded-in-wallpaper look
+            w.setMovableByWindowBackground_(True)
+            w.setCollectionBehavior_(
+                NSWindowCollectionBehaviorCanJoinAllSpaces
+                | NSWindowCollectionBehaviorFullScreenAuxiliary
+            )
+            w.setMinSize_((260, 400))
 
-        # Default: docked to the right edge, full visible height (resizable).
-        if w.frame().origin.x == 0 and w.frame().origin.y == 0:
-            screen = NSScreen.mainScreen()
-            if screen:
-                sf = screen.visibleFrame()
+            # Per-display saved frame, keyed by the screen's own geometry so a
+            # given monitor keeps its position when others come and go.
+            key = "TodayTasksSpineL-%dx%d@%d,%d" % (
+                int(sf.size.width), int(sf.size.height),
+                int(sf.origin.x), int(sf.origin.y),
+            )
+            w.setFrameAutosaveName_(key)
+            if not w.setFrameUsingName_(key):
+                # Default: docked to the LEFT edge of this display, full height.
                 w.setFrame_display_(
                     NSMakeRect(
-                        sf.origin.x + sf.size.width - 330,
+                        sf.origin.x + 10,
                         sf.origin.y + 10,
                         320,
                         sf.size.height - 20,
@@ -136,26 +141,51 @@ class AppDelegate(NSObject):
                     True,
                 )
 
-        # No frosted card: the transparent web view renders straight onto
-        # the wallpaper (its CSS provides a feathered wash for legibility).
-        config = WKWebViewConfiguration.alloc().init()
-        ucc = config.userContentController()
-        for name in ("save", "pin", "hide", "drag", "open", "zones"):
-            ucc.addScriptMessageHandler_name_(self, name)
-        self.webview = WKWebView.alloc().initWithFrame_configuration_(
-            w.contentView().bounds(), config
-        )
-        self.webview.setAutoresizingMask_(18)  # width + height sizable
-        self.webview.setValue_forKey_(False, "drawsBackground")
-        self.webview.setNavigationDelegate_(self)
-        w.setContentView_(self.webview)
+            config = WKWebViewConfiguration.alloc().init()
+            ucc = config.userContentController()
+            for name in ("save", "pin", "hide", "drag", "open", "zones"):
+                ucc.addScriptMessageHandler_name_(self, name)
+            wv = WKWebView.alloc().initWithFrame_configuration_(
+                w.contentView().bounds(), config
+            )
+            wv.setAutoresizingMask_(18)  # width + height sizable
+            wv.setValue_forKey_(False, "drawsBackground")
+            wv.setNavigationDelegate_(self)
+            w.setContentView_(wv)
+            wv.loadFileURL_allowingReadAccessToURL_(
+                url, url.URLByDeletingLastPathComponent()
+            )
 
-        url = NSURL.fileURLWithPath_(HTML_FILE)
-        self.webview.loadFileURL_allowingReadAccessToURL_(
-            url, url.URLByDeletingLastPathComponent()
-        )
+            self.panels.append({"window": w, "webview": wv, "zones": None,
+                                "ct": False, "index": i})
 
         self.applyPinned()
+        if not self.hidden:
+            for p in self.panels:
+                p["window"].orderFront_(None)
+
+    def panelForWebView_(self, webview):
+        for p in self.panels:
+            if p["webview"] is webview:
+                return p
+        return None
+
+    def screensChanged_(self, note):
+        self.buildPanels()
+
+    def applicationDidFinishLaunching_(self, note):
+        self.state = load_state()
+        self.file_mtime = self.currentMtime()
+        self.panels = []   # one per display: {window, webview, zones, ct}
+        self.hidden = False
+
+        self.buildPanels()
+
+        # Rebuild when displays are plugged in, unplugged, or rearranged.
+        NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
+            self, "screensChanged:",
+            "NSApplicationDidChangeScreenParametersNotification", None
+        )
 
         # Menu-bar icon: the way back after hiding the panel.
         self.statusItem = NSStatusBar.systemStatusBar().statusItemWithLength_(
@@ -211,9 +241,6 @@ class AppDelegate(NSObject):
         )
         self.runReminderSync_(None)
 
-        w.makeKeyAndOrderFront_(None)
-        NSApp.activateIgnoringOtherApps_(True)
-
     # -- JS -> Python bridge ------------------------------------------------
 
     def userContentController_didReceiveScriptMessage_(self, ucc, message):
@@ -226,39 +253,57 @@ class AppDelegate(NSObject):
             self.state["tasks"] = tasks
             self.state["date"] = today_str()
             self.persist()
+            # Mirror the edit onto the other displays (not the one being typed
+            # in, which would reset the caret).
+            self.pushStateExcept_(message.webView())
         elif name == "pin":
             self.state["pinned"] = not self.state.get("pinned", False)
             self.persist()
             self.applyPinned()
             self.pushState()
         elif name == "hide":
-            self.window.orderOut_(None)
+            self.hidePanel()
         elif name == "open":
             url = NSURL.URLWithString_(str(message.body()))
             if url is not None:
                 NSWorkspace.sharedWorkspace().openURL_(url)
         elif name == "zones":
-            try:
-                self.zones = json.loads(str(message.body()))
-            except Exception:
-                pass
+            panel = self.panelForWebView_(message.webView())
+            if panel is not None:
+                try:
+                    panel["zones"] = json.loads(str(message.body()))
+                except Exception:
+                    pass
         elif name == "drag":
+            panel = self.panelForWebView_(message.webView())
             event = NSApp.currentEvent()
-            if event is not None:
-                self.window.performWindowDragWithEvent_(event)
+            if panel is not None and event is not None:
+                panel["window"].performWindowDragWithEvent_(event)
 
     # -- Python -> JS -------------------------------------------------------
 
     def webView_didFinishNavigation_(self, webview, nav):
-        self.pushState()
+        self.pushStateTo_(webview)
 
-    def pushState(self):
+    def stateJS(self):
         payload = json.dumps(
             {"tasks": self.state["tasks"], "pinned": self.state.get("pinned", False)}
         )
-        self.webview.evaluateJavaScript_completionHandler_(
-            "window.setState(%s)" % payload, None
-        )
+        return "window.setState(%s)" % payload
+
+    def pushState(self):
+        js = self.stateJS()
+        for p in self.panels:
+            p["webview"].evaluateJavaScript_completionHandler_(js, None)
+
+    def pushStateTo_(self, webview):
+        webview.evaluateJavaScript_completionHandler_(self.stateJS(), None)
+
+    def pushStateExcept_(self, webview):
+        js = self.stateJS()
+        for p in self.panels:
+            if p["webview"] is not webview:
+                p["webview"].evaluateJavaScript_completionHandler_(js, None)
 
     # -- Apple Reminders ----------------------------------------------------
 
@@ -293,31 +338,27 @@ class AppDelegate(NSObject):
     def updateClickThrough_(self, timer):
         """Ignore the mouse except over reported hot zones, so desktop icons
         under the empty parts of the widget stay clickable."""
-        if not self.window.isVisible() or not self.zones:
-            return
-        # Never swallow clicks while pinned-and-focused editing? Editing still
-        # works because hot zones cover every interactive row.
-        p = NSEvent.mouseLocation()  # screen coords, origin bottom-left
-        f = self.window.frame()
-        inside_window = (
-            f.origin.x <= p.x <= f.origin.x + f.size.width
-            and f.origin.y <= p.y <= f.origin.y + f.size.height
-        )
-        hot = False
-        if inside_window:
-            # Convert to web-view coords (origin top-left, CSS px).
-            sx = self.zones.get("w", f.size.width) / max(f.size.width, 1)
-            sy = self.zones.get("h", f.size.height) / max(f.size.height, 1)
-            x = (p.x - f.origin.x) * sx
-            y = (f.origin.y + f.size.height - p.y) * sy
-            for rx, ry, rw, rh in self.zones.get("rects", []):
-                if rx <= x <= rx + rw and ry <= y <= ry + rh:
-                    hot = True
-                    break
-        if hot == self.click_through:
-            return
-        self.click_through = hot
-        self.window.setIgnoresMouseEvents_(not hot)
+        cursor = NSEvent.mouseLocation()  # screen coords, origin bottom-left
+        for panel in self.panels:
+            win, zones = panel["window"], panel["zones"]
+            if not win.isVisible() or not zones:
+                continue
+            f = win.frame()
+            hot = False
+            if (f.origin.x <= cursor.x <= f.origin.x + f.size.width
+                    and f.origin.y <= cursor.y <= f.origin.y + f.size.height):
+                # Convert to web-view coords (origin top-left, CSS px).
+                sx = zones.get("w", f.size.width) / max(f.size.width, 1)
+                sy = zones.get("h", f.size.height) / max(f.size.height, 1)
+                x = (cursor.x - f.origin.x) * sx
+                y = (f.origin.y + f.size.height - cursor.y) * sy
+                for rx, ry, rw, rh in zones.get("rects", []):
+                    if rx <= x <= rx + rw and ry <= y <= ry + rh:
+                        hot = True
+                        break
+            if hot != panel["ct"]:
+                panel["ct"] = hot
+                win.setIgnoresMouseEvents_(not hot)
 
     # -- External-edit watching --------------------------------------------
 
@@ -344,11 +385,13 @@ class AppDelegate(NSObject):
     def applyPinned(self):
         # Default: desktop-widget level (never blocks apps, visible with the
         # wallpaper). Pinned (star ON): floats above everything temporarily.
-        self.window.setLevel_(
+        level = (
             NSFloatingWindowLevel
             if self.state.get("pinned", False)
             else DESKTOP_LEVEL
         )
+        for p in self.panels:
+            p["window"].setLevel_(level)
 
     def rolloverIfNeeded(self):
         if self.state.get("date") != today_str():
@@ -363,15 +406,21 @@ class AppDelegate(NSObject):
         AppHelper.callAfter(self.rolloverIfNeeded)
 
     def togglePanel_(self, sender):
-        if self.window.isVisible():
-            self.window.orderOut_(None)
-        else:
+        if self.hidden:
             self.showPanel()
+        else:
+            self.hidePanel()
+
+    def hidePanel(self):
+        self.hidden = True
+        for p in self.panels:
+            p["window"].orderOut_(None)
 
     def showPanel(self):
+        self.hidden = False
         self.rolloverIfNeeded()
-        self.window.makeKeyAndOrderFront_(None)
-        NSApp.activateIgnoringOtherApps_(True)
+        for p in self.panels:
+            p["window"].orderFront_(None)
 
     def applicationShouldHandleReopen_hasVisibleWindows_(self, app, flag):
         self.showPanel()
