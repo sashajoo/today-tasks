@@ -130,19 +130,19 @@ class AppDelegate(NSObject):
 
             # Per-display saved frame, keyed by the screen's own geometry so a
             # given monitor keeps its position when others come and go.
-            key = "TodayTasksSpineL2-%dx%d@%d,%d" % (
+            key = "TodayTasksSpineL3-%dx%d@%d,%d" % (
                 int(sf.size.width), int(sf.size.height),
                 int(sf.origin.x), int(sf.origin.y),
             )
             w.setFrameAutosaveName_(key)
             if not w.setFrameUsingName_(key):
-                # Default: docked to the LEFT edge of this display, full height.
+                # Default: flush against the LEFT edge of this display, full height.
                 w.setFrame_display_(
                     NSMakeRect(
-                        sf.origin.x + 10,
-                        sf.origin.y + 10,
+                        sf.origin.x,
+                        sf.origin.y,
                         320,
-                        sf.size.height - 20,
+                        sf.size.height,
                     ),
                     True,
                 )
@@ -210,8 +210,8 @@ class AppDelegate(NSObject):
             if on_its_screen:
                 p["want"] = f  # she may have dragged it; respect that
                 continue
-            h = min(f.size.height, vf.size.height - 20)
-            back = NSMakeRect(vf.origin.x + 10, vf.origin.y + 10, f.size.width, h)
+            h = min(f.size.height, vf.size.height)
+            back = NSMakeRect(vf.origin.x, vf.origin.y, f.size.width, h)
             p["want"] = back
             win.setFrame_display_(back, True)
 
