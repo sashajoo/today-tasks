@@ -9,6 +9,9 @@
 - **Docks to the left edge** by default instead of the right, which also keeps it
   clear of desktop icons.
 - Hiding, showing, and the pin toggle now apply to all panels at once.
+- Fix: macOS constrains borderless windows back onto the main display, which
+  stacked every panel on one screen. `constrainFrameRect:toScreen:` is now
+  overridden and each frame is re-asserted after the window is ordered front.
 
 ## 1.2 — 2026-07-21
 

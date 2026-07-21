@@ -17,6 +17,7 @@ from AppKit import (
     NSEvent,
     NSFloatingWindowLevel,
     NSImage,
+    NSEqualRects,
     NSMakeRect,
     NSMenu,
     NSMenuItem,
@@ -89,6 +90,11 @@ class PanelWindow(NSWindow):
     def canBecomeMainWindow(self):
         return True
 
+    def constrainFrameRect_toScreen_(self, rect, screen):
+        # macOS otherwise pulls these borderless windows back onto the main
+        # display, which would stack every panel on one screen.
+        return rect
+
 
 class AppDelegate(NSObject):
     # -- Panels (one per display) -------------------------------------------
@@ -124,7 +130,7 @@ class AppDelegate(NSObject):
 
             # Per-display saved frame, keyed by the screen's own geometry so a
             # given monitor keeps its position when others come and go.
-            key = "TodayTasksSpineL-%dx%d@%d,%d" % (
+            key = "TodayTasksSpineL2-%dx%d@%d,%d" % (
                 int(sf.size.width), int(sf.size.height),
                 int(sf.origin.x), int(sf.origin.y),
             )
@@ -157,12 +163,17 @@ class AppDelegate(NSObject):
             )
 
             self.panels.append({"window": w, "webview": wv, "zones": None,
-                                "ct": False, "index": i})
+                                "ct": False, "index": i, "want": w.frame()})
 
         self.applyPinned()
         if not self.hidden:
             for p in self.panels:
                 p["window"].orderFront_(None)
+            # Ordering a window front can nudge its frame; put each panel back
+            # on its own display afterwards.
+            for p in self.panels:
+                if not NSEqualRects(p["window"].frame(), p["want"]):
+                    p["window"].setFrame_display_(p["want"], True)
 
     def panelForWebView_(self, webview):
         for p in self.panels:
