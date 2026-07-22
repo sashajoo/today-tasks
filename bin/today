@@ -517,16 +517,23 @@ def _sync_locked(verbose):
             print("Reminders returned an empty list unexpectedly; skipped this sync.")
         return state
 
+    # Shared (Notion) tasks live in a separate world; Reminders only mirrors
+    # personal tasks. Titles that belong to the shared list must never be
+    # (re)created here.
+    personal = [t for t in tasks if t.get("space") != "shared"]
+    shared_titles = {(t.get("text") or "").strip()
+                     for t in tasks if t.get("space") == "shared"}
+
     # Reminders that no task claims yet, keyed by title — lets a task adopt an
     # existing reminder instead of creating a duplicate.
-    claimed = {t.get("rid") for t in tasks if t.get("rid")}
+    claimed = {t.get("rid") for t in personal if t.get("rid")}
     unclaimed = {}
     for rid, r in remote.items():
         if rid not in claimed:
             unclaimed.setdefault(r["text"].strip(), []).append(rid)
 
-    # widget -> Reminders
-    for t in tasks:
+    # widget -> Reminders (personal only)
+    for t in personal:
         rid = t.get("rid")
         if not rid:
             same = unclaimed.get((t.get("text") or "").strip())
@@ -557,13 +564,16 @@ def _sync_locked(verbose):
         state["tasks"] = [t for t in tasks if not t.get("_gone")]
         tasks = state["tasks"]
 
-    # Reminders -> widget
+    # Reminders -> widget (skip anything a shared task already owns by title,
+    # so a task moved to the shared list isn't re-imported as personal)
     known = {t.get("rid") for t in tasks}
     for rid, r in remote.items():
         if rid in known:
             continue
         if r["done"]:
             continue  # don't import already-finished reminders
+        if r["text"].strip() in shared_titles:
+            continue  # belongs to the shared list, not personal
         tasks.append({
             "id": format(int(time.time() * 1000), "x") + str(imported),
             "text": r["text"], "done": False,
@@ -571,8 +581,10 @@ def _sync_locked(verbose):
         })
         imported += 1
 
-    # completion coming from Reminders
+    # completion coming from Reminders (personal tasks only)
     for t in tasks:
+        if t.get("space") == "shared":
+            continue
         r = remote.get(t.get("rid"))
         if r and r["done"] and not t.get("done"):
             t["done"] = True
@@ -597,14 +609,20 @@ def show(state):
         print("No tasks.")
         return
     today = today_str()
+    shared_name = ((state.get("notion") or {}).get("name") or "SHARED").upper()
+
+    def personal(t):
+        return t.get("space") != "shared"
+
     buckets = [
-        ("CARRIED OVER", lambda t: not t.get("done") and t.get("due", today) < today),
-        ("TODAY", lambda t: not t.get("done") and t.get("due", today) == today),
-        ("UPCOMING", lambda t: not t.get("done") and t.get("due", today) > today),
-        ("DONE", lambda t: t.get("done")),
+        ("CARRIED OVER", lambda t: personal(t) and not t.get("done") and t.get("due", today) < today),
+        ("TODAY", lambda t: personal(t) and not t.get("done") and t.get("due", today) == today),
+        (shared_name, lambda t: t.get("space") == "shared"),
+        ("UPCOMING", lambda t: personal(t) and not t.get("done") and t.get("due", today) > today),
+        ("DONE", lambda t: personal(t) and t.get("done")),
     ]
-    open_n = sum(1 for t in tasks if not t.get("done") and t.get("due", today) <= today)
-    done_n = sum(1 for t in tasks if t.get("done"))
+    open_n = sum(1 for t in tasks if personal(t) and not t.get("done") and t.get("due", today) <= today)
+    done_n = sum(1 for t in tasks if personal(t) and t.get("done"))
     print("Today  (%d done, %d open)" % (done_n, open_n))
     for label, pred in buckets:
         rows = [(i, t) for i, t in enumerate(tasks, 1) if pred(t)]
@@ -615,7 +633,9 @@ def show(state):
             mark = "x" if t.get("done") else " "
             due = t.get("due", today)
             tag = ""
-            if not t.get("done") and due != today:
+            if t.get("space") == "shared" and t.get("addedBy"):
+                tag = "  (%s)" % t["addedBy"]
+            elif not t.get("done") and due != today:
                 tag = "  (%s)" % due
             print("  %2d. [%s] %s%s" % (i, mark, t.get("text", ""), tag))
             for line in (t.get("note") or "").splitlines():
@@ -785,10 +805,19 @@ def main():
                 print("Shared tasks: %d" % n)
             return
         else:
-            # `today share N [N...]` — move tasks into the shared list
+            # `today share N [N...]` — move tasks into the shared list, and
+            # remove them from the personal Reminders list so they don't get
+            # re-imported as personal duplicates.
             for i in pick(state, args[1:]):
-                state["tasks"][i]["space"] = "shared"
-                state["tasks"][i].pop("rid", None)  # leave Reminders; it's shared now
+                t = state["tasks"][i]
+                t["space"] = "shared"
+                rid = t.pop("rid", None)
+                if rid and state.get("remindersList"):
+                    try:
+                        osa('tell application "Reminders" to delete '
+                            '(first reminder whose id is "%s")' % rid)
+                    except SystemExit:
+                        pass
             save(state)
             if cfg.get("db"):
                 state = notion_sync()

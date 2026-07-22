@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.1 — 2026-07-22
+
+- Fix: moving a task to the shared list no longer creates a duplicate. The
+  Reminders sync now ignores shared tasks entirely and never re-imports a
+  reminder whose title belongs to the shared list, and moving a task to shared
+  deletes its personal Reminders entry.
+- The `today` CLI now shows a Shared section (with the "added by" name) instead
+  of mixing shared tasks into the date buckets.
+
 ## 1.5 — 2026-07-22
 
 - **Shared lists via Notion**, for sharing with a coworker (Apple Reminders
