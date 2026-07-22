@@ -646,8 +646,15 @@ const GLYPHS = {
   '9': ['111','101','111','001','111'],
   '%': ['101','001','010','100','101'],
 };
-const LED_ON = '#f7b06a', LED_OFF = 'rgba(247,176,106,0.13)';
 let ledTarget = 0, ledShown = 0, ledAnimating = false;
+const accent = () =>
+  getComputedStyle(document.documentElement).getPropertyValue('--amber').trim() || '#f7b06a';
+const hexA = (hex, a) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return 'rgba(247,176,106,' + a + ')';
+  const n = parseInt(m[1], 16);
+  return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
+};
 
 function drawLED() {
   const canvas = document.getElementById('led');
@@ -673,15 +680,16 @@ function drawLED() {
   const cols = Math.max(4, Math.floor(barW / PITCH));
   const filled = Math.round(cols * ledShown);
 
+  const on_col = accent(), off_col = hexA(on_col, '0.13');
   const dot = (cx, cy, on) => {
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, 7);
     if (on) {
-      ctx.fillStyle = LED_ON;
-      ctx.shadowColor = LED_ON;
+      ctx.fillStyle = on_col;
+      ctx.shadowColor = on_col;
       ctx.shadowBlur = 3;
     } else {
-      ctx.fillStyle = LED_OFF;
+      ctx.fillStyle = off_col;
       ctx.shadowBlur = 0;
     }
     ctx.fill();
@@ -729,7 +737,13 @@ function confettiBurst() {
   canvas.width = innerWidth * devicePixelRatio;
   canvas.height = innerHeight * devicePixelRatio;
   ctx.scale(devicePixelRatio, devicePixelRatio);
-  const colors = ['#c2703a', '#e8a97a', '#f5d0a9', '#b8c4a8', '#d9b8c4'];
+  const cs = getComputedStyle(document.documentElement);
+  const colors = [
+    cs.getPropertyValue('--amber').trim() || '#f7b06a',
+    cs.getPropertyValue('--stale').trim() || '#e08a6a',
+    cs.getPropertyValue('--teal').trim() || '#5ed3c4',
+    '#f5d0a9', '#ffffff',
+  ];
   const parts = [];
   for (let n = 0; n < 50; n++) {
     parts.push({
@@ -758,6 +772,13 @@ function confettiBurst() {
     requestAnimationFrame(frame);
   })(t0);
 }
+
+// Accent palette pushed from the app, derived from this display's wallpaper.
+window.applyTheme = (vars) => {
+  const r = document.documentElement.style;
+  for (const k in vars) r.setProperty(k, vars[k]);
+  drawLED();  // LED + confetti read the accent from the CSS vars
+};
 
 window.setState = (state) => {
   tasks = state.tasks || [];
