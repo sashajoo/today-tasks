@@ -61,7 +61,7 @@ same list on each. Everything is editable by clicking; nothing needs the termina
 | Delete | Hover the row, click the ✕ on the right |
 | Reorder | Hover, then drag the `⋮` handle |
 | Add notes or a link | Hover the row, click `▶` to open its drawer |
-| Open a saved link | Click the amber 🔗 chip in the drawer |
+| Open a saved link | Click the 🔗 chip in the drawer |
 | Reschedule | In the drawer, click **Today**, **Tomorrow**, or **+1 week** |
 | Move the widget | Drag it by the "Today" header (each display remembers its own spot) |
 | Resize | Drag any edge or corner |
