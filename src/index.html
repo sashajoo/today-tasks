@@ -15,6 +15,10 @@
     --stale: #e08a6a;
     --hover: rgba(247,241,232,0.08);
     --chip: rgba(28,20,14,0.55);
+    --teal: #5ed3c4;
+    --teal-glow: rgba(94,211,196,0.55);
+    --teal-line: rgba(94,211,196,0.4);
+    --teal-bg: rgba(94,211,196,0.16);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   [hidden] { display: none !important; }
@@ -72,6 +76,17 @@
   .sec::after { content: ""; flex: 1; height: 1px; background: var(--line); }
   .sec.warn { color: var(--stale); }
   .sec .n { font-weight: 700; opacity: 0.75; }
+  .sec.shared { color: var(--teal); }
+  .sec.shared::after { background: linear-gradient(90deg, var(--teal-line), transparent); }
+
+  /* shared-task attribution chip */
+  .who {
+    display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 99px;
+    font-size: 9.5px; font-weight: 700; letter-spacing: 0.02em; vertical-align: 1px;
+    background: var(--teal-bg); color: var(--teal); text-shadow: none;
+  }
+  .st.shared .node { border-color: var(--teal); }
+  .st.shared.past .node { background: var(--teal); box-shadow: 0 0 8px var(--teal-glow); }
 
   /* today = the focus band */
   #todayband {
@@ -176,6 +191,7 @@
     text-shadow: none;
   }
   .datebtn:hover { border-color: var(--amber); color: var(--amber); }
+  .datebtn.share:hover { border-color: var(--teal); color: var(--teal); }
 
   .grip {
     flex-shrink: 0; width: 15px; text-align: center; font-size: 12px;
@@ -239,6 +255,9 @@
       <div id="alldone" hidden>All done &#10024;</div>
     </div>
 
+    <div id="secShared" class="sec shared" hidden>SHARED <span class="who2"></span><span class="n"></span></div>
+    <div id="sharedlist"></div>
+
     <div id="secSoon" class="sec" hidden>UPCOMING <span class="n"></span></div>
     <div id="soon"></div>
 
@@ -300,16 +319,21 @@ document.getElementById('hidebtn').addEventListener('click', () => post('hide'))
 const els = {
   carried: document.getElementById('carried'),
   active: document.getElementById('active'),
+  shared: document.getElementById('sharedlist'),
   soon: document.getElementById('soon'),
   done: document.getElementById('donelist'),
   secCarried: document.getElementById('secCarried'),
   secToday: document.getElementById('secToday'),
+  secShared: document.getElementById('secShared'),
   secSoon: document.getElementById('secSoon'),
   secDone: document.getElementById('secDone'),
   count: document.getElementById('count'),
   alldone: document.getElementById('alldone'),
   empty: document.getElementById('emptyhint'),
 };
+let sharedName = 'Shared';
+let myName = '';
+let sharedLinked = false;
 
 function labelFor(u) {
   try {
@@ -322,11 +346,11 @@ function labelFor(u) {
 
 function makeStation(t, arrIdx, kind) {
   const st = document.createElement('div');
-  st.className = 'st ' + kind;
+  st.className = 'st ' + kind + (kind === 'shared' && t.done ? ' past' : '');
 
   const ts = document.createElement('span');
   ts.className = 'tstamp';
-  if (kind === 'past') ts.textContent = t.doneAt || '';
+  if (kind === 'past' || (kind === 'shared' && t.done)) ts.textContent = t.doneAt || '';
   else if (kind === 'carried') {
     const n = -dayDiff(t.due);
     ts.textContent = n === 1 ? 'yest' : n + 'd';
@@ -375,6 +399,13 @@ function makeStation(t, arrIdx, kind) {
     if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
   });
   wrap.appendChild(input);
+  if (kind === 'shared' && t.addedBy) {
+    const who = document.createElement('span');
+    who.className = 'who';
+    who.textContent = (t.addedBy === myName ? 'you' : t.addedBy);
+    who.title = 'Added by ' + t.addedBy;
+    wrap.appendChild(who);
+  }
   requestAnimationFrame(grow);
 
   const grip = document.createElement('span');
@@ -450,7 +481,7 @@ function makeStation(t, arrIdx, kind) {
       bar.appendChild(c);
     });
   }
-  if (kind !== 'past') {
+  if (kind !== 'past' && kind !== 'shared') {
     [['Today', 0], ['Tomorrow', 1], ['+1 week', 7]].forEach(([lbl, d]) => {
       const b = document.createElement('button');
       b.className = 'datebtn';
@@ -463,6 +494,21 @@ function makeStation(t, arrIdx, kind) {
       bar.appendChild(b);
     });
   }
+  // Share / unshare toggle (only when a shared list is linked).
+  if (sharedLinked) {
+    const sb = document.createElement('button');
+    sb.className = 'datebtn share';
+    if (kind === 'shared') {
+      sb.textContent = '← Make private';
+      sb.title = 'Move back to your personal list';
+      sb.addEventListener('click', () => { post('unshare', t.id); });
+    } else {
+      sb.textContent = '→ Share with ' + sharedName;
+      sb.title = 'Move this task into the shared list';
+      sb.addEventListener('click', () => { post('share', t.id); });
+    }
+    bar.appendChild(sb);
+  }
   if (bar.childNodes.length) nw.appendChild(bar);
 
   return [st, nw];
@@ -470,12 +516,13 @@ function makeStation(t, arrIdx, kind) {
 
 function render() {
   els.carried.innerHTML = ''; els.active.innerHTML = '';
-  els.soon.innerHTML = ''; els.done.innerHTML = '';
+  els.shared.innerHTML = ''; els.soon.innerHTML = ''; els.done.innerHTML = '';
   const today = isoToday();
 
-  const groups = { carried: [], today: [], soon: [], past: [] };
+  const groups = { carried: [], today: [], soon: [], past: [], shared: [] };
   tasks.forEach((t, i) => {
     if (!t.due) t.due = today;
+    if (t.space === 'shared') { groups.shared.push(i); return; }
     if (t.done) groups.past.push(i);
     else if (t.due < today) groups.carried.push(i);
     else if (t.due > today) groups.soon.push(i);
@@ -493,6 +540,10 @@ function render() {
   els.secSoon.querySelector('.n').textContent = groups.soon.length ? '· ' + groups.soon.length : '';
   els.secDone.hidden = !groups.past.length;
   els.secDone.querySelector('.n').textContent = groups.past.length ? '· ' + groups.past.length : '';
+  const openShared = groups.shared.filter(i => !tasks[i].done).length;
+  els.secShared.hidden = !groups.shared.length;
+  els.secShared.querySelector('.who2').textContent = sharedName ? '· ' + sharedName + ' ' : '';
+  els.secShared.querySelector('.n').textContent = groups.shared.length ? '· ' + openShared + ' open' : '';
   els.empty.hidden = nToday > 0 || allDone;
   els.alldone.hidden = !allDone;
   document.getElementById('pinbtn').classList.toggle('active', pinned);
@@ -513,6 +564,11 @@ function render() {
       }
       makeStation(tasks[i], i, 'soon').forEach(e => els.soon.appendChild(e));
     });
+
+  // Shared list: open tasks first, then completed (struck) below.
+  groups.shared
+    .slice().sort((a, b) => (tasks[a].done ? 1 : 0) - (tasks[b].done ? 1 : 0))
+    .forEach(i => makeStation(tasks[i], i, 'shared').forEach(e => els.shared.appendChild(e)));
 
   groups.past
     .slice().sort((a, b) => (tasks[b].doneAt || '').localeCompare(tasks[a].doneAt || ''))
@@ -706,9 +762,12 @@ function confettiBurst() {
 window.setState = (state) => {
   tasks = state.tasks || [];
   pinned = state.pinned !== false;
+  sharedName = state.sharedName || 'Shared';
+  myName = state.myName || '';
+  sharedLinked = !!state.sharedLinked;
   const today = isoToday();
-  const openToday = tasks.filter(t => !t.done && (t.due || today) <= today).length;
-  wasAllDone = openToday === 0 && tasks.some(t => t.done);
+  const openToday = tasks.filter(t => !t.done && t.space !== 'shared' && (t.due || today) <= today).length;
+  wasAllDone = openToday === 0 && tasks.some(t => t.done && t.space !== 'shared');
   render();
 };
 

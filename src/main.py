@@ -149,7 +149,8 @@ class AppDelegate(NSObject):
 
             config = WKWebViewConfiguration.alloc().init()
             ucc = config.userContentController()
-            for name in ("save", "pin", "hide", "drag", "open", "zones", "width"):
+            for name in ("save", "pin", "hide", "drag", "open", "zones",
+                         "width", "share", "unshare"):
                 ucc.addScriptMessageHandler_name_(self, name)
             wv = WKWebView.alloc().initWithFrame_configuration_(
                 w.contentView().bounds(), config
@@ -299,6 +300,15 @@ class AppDelegate(NSObject):
         )
         self.runReminderSync_(None)
 
+        # Notion shared-list sync, if she linked one.
+        self.shareProc = None
+        self.shareTimer = (
+            NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                45.0, self, "runShareSync:", None, True
+            )
+        )
+        self.runShareSync_(None)
+
     # -- JS -> Python bridge ------------------------------------------------
 
     def userContentController_didReceiveScriptMessage_(self, ucc, message):
@@ -342,6 +352,30 @@ class AppDelegate(NSObject):
             event = NSApp.currentEvent()
             if panel is not None and event is not None:
                 panel["window"].performWindowDragWithEvent_(event)
+        elif name in ("share", "unshare"):
+            self.moveShare_action_(name, str(message.body()))
+
+    def moveShare_action_(self, action, task_id):
+        for t in self.state["tasks"]:
+            if t.get("id") == task_id:
+                if action == "share":
+                    t["space"] = "shared"
+                    t.pop("rid", None)
+                else:
+                    t.pop("space", None)
+                    t.pop("nid", None)
+                    t.pop("addedBy", None)
+                break
+        self.persist()
+        self.pushState()
+        # Push the change to Notion out-of-process.
+        cli = self.todayCLI()
+        if cli and (self.state.get("notion") or {}).get("db"):
+            try:
+                subprocess.Popen([cli, "share", "sync"],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
 
     # -- Python -> JS -------------------------------------------------------
 
@@ -349,9 +383,14 @@ class AppDelegate(NSObject):
         self.pushStateTo_(webview)
 
     def stateJS(self):
-        payload = json.dumps(
-            {"tasks": self.state["tasks"], "pinned": self.state.get("pinned", False)}
-        )
+        cfg = self.state.get("notion") or {}
+        payload = json.dumps({
+            "tasks": self.state["tasks"],
+            "pinned": self.state.get("pinned", False),
+            "sharedName": cfg.get("name", "Shared"),
+            "myName": cfg.get("me", ""),
+            "sharedLinked": bool(cfg.get("db")),
+        })
         return "window.setState(%s)" % payload
 
     def pushState(self):
@@ -395,6 +434,23 @@ class AppDelegate(NSObject):
             )
         except Exception:
             self.syncProc = None
+
+    def runShareSync_(self, timer):
+        cfg = self.state.get("notion") or {}
+        if not cfg.get("on") or not cfg.get("db"):
+            return
+        if self.shareProc is not None and self.shareProc.poll() is None:
+            return
+        cli = self.todayCLI()
+        if not cli:
+            return
+        try:
+            self.shareProc = subprocess.Popen(
+                [cli, "share", "sync"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            self.shareProc = None
 
     # -- Click-through ------------------------------------------------------
 
