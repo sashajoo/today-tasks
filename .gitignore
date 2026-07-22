@@ -1,3 +1,6 @@
 .DS_Store
 __pycache__/
 *.pyc
+
+# collaborator hand-off doc (contains the specific shared database ID)
+Shared list setup.md

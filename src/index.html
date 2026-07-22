@@ -399,13 +399,6 @@ function makeStation(t, arrIdx, kind) {
     if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
   });
   wrap.appendChild(input);
-  if (kind === 'shared' && t.addedBy) {
-    const who = document.createElement('span');
-    who.className = 'who';
-    who.textContent = (t.addedBy === myName ? 'you' : t.addedBy);
-    who.title = 'Added by ' + t.addedBy;
-    wrap.appendChild(who);
-  }
   requestAnimationFrame(grow);
 
   const grip = document.createElement('span');

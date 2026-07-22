@@ -201,7 +201,6 @@ Now you both have the widget's Shared section backed by the same tasks.
 | Add straight to shared | `today add "Restock tips" --shared`, or the input then the `→ Share` button in a task's drawer |
 | Move an existing task in | open its `▶` drawer → **→ Share with <list>** |
 | Move it back to private | drawer → **← Make private** |
-| See who added a task | the small name chip on each shared row (your own show "you") |
 
 Completion, edits, due dates, and deletions sync both ways every ~45 seconds, and
 each side can check off or edit any shared task. Personal notes stay on the shared

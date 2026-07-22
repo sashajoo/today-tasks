@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.2 — 2026-07-22
+
+- Remove the shared-list "Added by" attribution. It showed the Notion
+  integration's name rather than a real person, so it wasn't useful; shared rows
+  and the Notion database no longer carry it.
+
 ## 1.6.1 — 2026-07-22
 
 - Add an MIT LICENSE and a rendered hero image; refresh the README for publishing

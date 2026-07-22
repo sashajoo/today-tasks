@@ -273,7 +273,6 @@ def notion_fetch(db_id, token):
                 "done": bool(p.get("Done", {}).get("checkbox")),
                 "due": ((p.get("Due", {}).get("date") or {}) or {}).get("start"),
                 "note": _plain(p.get("Note", {}).get("rich_text")),
-                "addedBy": _plain(p.get("Added by", {}).get("rich_text")),
             })
         if not r.get("has_more"):
             break
@@ -281,7 +280,7 @@ def notion_fetch(db_id, token):
     return rows
 
 
-def _props(t, who=None):
+def _props(t):
     p = {
         "Name": {"title": [{"text": {"content": t.get("text", "")[:2000]}}]},
         "Done": {"checkbox": bool(t.get("done"))},
@@ -290,14 +289,12 @@ def _props(t, who=None):
     p["Due"] = {"date": {"start": due} if due else None}
     note = t.get("note") or ""
     p["Note"] = {"rich_text": [{"text": {"content": note[:2000]}}] if note else []}
-    if who is not None:
-        p["Added by"] = {"rich_text": [{"text": {"content": who[:200]}}] if who else []}
     return p
 
 
-def notion_create(db_id, token, t, who):
+def notion_create(db_id, token, t):
     r = notion_api("POST", "/pages",
-                   {"parent": {"database_id": db_id}, "properties": _props(t, who)},
+                   {"parent": {"database_id": db_id}, "properties": _props(t)},
                    token)
     return r["id"]
 
@@ -375,7 +372,6 @@ def _notion_sync_locked(verbose):
     if not db_id:
         sys.exit("No shared list linked. Run: today share new \"NAME\"  (or share join DBID)")
     token = notion_token()
-    who = cfg.get("me") or whoami()
     remote = {r["nid"]: r for r in notion_fetch(db_id, token)}
 
     tasks = state["tasks"]
@@ -418,8 +414,7 @@ def _notion_sync_locked(verbose):
             t["_gone"] = True
             dropped += 1
         else:
-            t["nid"] = notion_create(db_id, token, t, who)
-            t.setdefault("addedBy", who)
+            t["nid"] = notion_create(db_id, token, t)
             touched.add(t["nid"])
             created += 1
 
@@ -436,7 +431,6 @@ def _notion_sync_locked(verbose):
             "id": format(int(time.time() * 1000), "x") + str(imported),
             "text": r["text"], "done": r["done"], "space": "shared",
             "due": r["due"] or today, "note": r["note"], "nid": nid,
-            "addedBy": r["addedBy"] or "",
             **({"doneAt": time.strftime("%H:%M"), "doneOn": today} if r["done"] else {}),
         })
         imported += 1
@@ -460,8 +454,6 @@ def _notion_sync_locked(verbose):
             t["text"] = r["text"]
         if (r["note"] or "") != (t.get("note") or ""):
             t["note"] = r["note"]
-        if r["addedBy"] and not t.get("addedBy"):
-            t["addedBy"] = r["addedBy"]
 
     save(state)
     if verbose:
@@ -633,9 +625,7 @@ def show(state):
             mark = "x" if t.get("done") else " "
             due = t.get("due", today)
             tag = ""
-            if t.get("space") == "shared" and t.get("addedBy"):
-                tag = "  (%s)" % t["addedBy"]
-            elif not t.get("done") and due != today:
+            if t.get("space") != "shared" and not t.get("done") and due != today:
                 tag = "  (%s)" % due
             print("  %2d. [%s] %s%s" % (i, mark, t.get("text", ""), tag))
             for line in (t.get("note") or "").splitlines():
@@ -755,7 +745,6 @@ def main():
                 "properties": {
                     "Name": {"title": {}}, "Done": {"checkbox": {}},
                     "Due": {"date": {}}, "Note": {"rich_text": {}},
-                    "Added by": {"rich_text": {}},
                 },
             }, token)
             state["notion"] = {"db": db["id"], "name": name, "me": me, "on": True}
