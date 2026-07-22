@@ -356,11 +356,12 @@ class AppDelegate(NSObject):
             self.moveShare_action_(name, str(message.body()))
 
     def moveShare_action_(self, action, task_id):
+        stale_rid = None
         for t in self.state["tasks"]:
             if t.get("id") == task_id:
                 if action == "share":
                     t["space"] = "shared"
-                    t.pop("rid", None)
+                    stale_rid = t.pop("rid", None)  # leaves the personal list
                 else:
                     t.pop("space", None)
                     t.pop("nid", None)
@@ -368,6 +369,15 @@ class AppDelegate(NSObject):
                 break
         self.persist()
         self.pushState()
+        # Remove the now-shared task from the personal Reminders list.
+        if stale_rid and self.state.get("remindersList"):
+            script = ('tell application "Reminders" to delete '
+                      '(first reminder whose id is "%s")' % stale_rid)
+            try:
+                subprocess.Popen(["osascript", "-e", script],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
         # Push the change to Notion out-of-process.
         cli = self.todayCLI()
         if cli and (self.state.get("notion") or {}).get("db"):
