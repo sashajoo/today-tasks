@@ -172,6 +172,61 @@ personal list unless you want that.
 
 ---
 
+## Sharing a list with a coworker (Notion)
+
+Apple Reminders sharing ties two personal iCloud accounts together, which is
+awkward for a coworker. Instead the widget can sync a **shared list** to a Notion
+database that you both connect to. Everyone linked to it sees the same shared
+tasks — in the widget's teal **Shared** section — while your personal tasks stay
+private to you.
+
+**One-time setup (needs a Notion integration token in `~/.notion_token`).**
+
+Owner (creates the list):
+
+```
+today share new "Lab shared"     # creates the Notion database + links you
+```
+
+It prints the database URL and its ID. In Notion, open that page and **share it
+with your coworker** (and, if you're in different workspaces, share it to their
+integration too). Then send them the database ID.
+
+Coworker (joins the existing list):
+
+```
+echo 'secret_theirtoken' > ~/.notion_token   # their own Notion integration
+today share join <DATABASE_ID> "Lab shared"  # links their widget to the same list
+```
+
+Now you both have the widget's Shared section backed by the same tasks.
+
+**Putting tasks on the shared list**
+
+| Action | How |
+| --- | --- |
+| Add straight to shared | `today add "Restock tips" --shared`, or the input then the `→ Share` button in a task's drawer |
+| Move an existing task in | open its `▶` drawer → **→ Share with <list>** |
+| Move it back to private | drawer → **← Make private** |
+| See who added a task | the small name chip on each shared row (your own show "you") |
+
+Completion, edits, due dates, and deletions sync both ways every ~45 seconds, and
+each side can check off or edit any shared task. Personal notes stay on the shared
+Notion page too (unlike Reminders). To manage from the terminal:
+
+```
+today share status      # what's linked
+today share sync        # sync now
+today share off         # pause shared syncing
+today unshare N         # move task N back to private
+```
+
+**Which store, and privacy.** Only tasks you explicitly share go to Notion; your
+personal list never leaves your Mac. Anyone with access to that Notion database
+sees everything on the shared list, so keep it to the shared work.
+
+---
+
 ## Where your data lives
 
 | What | Where |

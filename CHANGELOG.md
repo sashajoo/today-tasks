@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.5 — 2026-07-22
+
+- **Shared lists via Notion**, for sharing with a coworker (Apple Reminders
+  sharing was wrong for that). A shared list syncs two-way to a Notion database
+  both people connect to; it shows in a teal "Shared" section with a per-task
+  "added by" chip, separate from your private tasks.
+- Set up with `today share new "NAME"` (owner) and `today share join DBID` (the
+  coworker); move tasks in/out with the drawer's Share button or
+  `today add --shared` / `today share N` / `today unshare N`. Auto-syncs ~45s.
+- Sync safety mirrors the Reminders engine: exclusive lock, title-based adoption,
+  empty-response guard, and a "just-pushed" guard so a stale snapshot can't
+  revert an edit. Linking a different database clears stale page ids so tasks
+  re-sync into the new one.
+
 ## 1.4 — 2026-07-21
 
 - **Task text no longer gets cut off.** Rows use auto-growing text fields, so a
