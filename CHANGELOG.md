@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.1 — 2026-07-22
+
+- Add an MIT LICENSE and a rendered hero image; refresh the README for publishing
+  (generic example tasks, no personal data). Removed a stray duplicate source file.
+
 ## 1.6 — 2026-07-22
 
 - **The accent color now comes from your wallpaper.** Each display's widget reads

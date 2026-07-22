@@ -1,30 +1,23 @@
 # Today Tasks
 
 A translucent to-do widget that lives on your macOS wallpaper. It sits behind your
-app windows, so it never blocks your work, and clicks pass through the empty parts
-so your desktop icons stay usable.
+app windows, so it never blocks your work, clicks pass through the empty parts so
+your desktop icons stay usable, and it paints itself with your wallpaper's colors.
 
 Built by Sasha Zhu.
 
-```
-  Today  Tue, Jul 21              2 of 7 done   ★  –
-  ▮▮▮▮▮▮▮▮▮▮▮▮·································  33%   <- LED meter
-  ─────────────────────────────────────────────────
-  CARRIED OVER · 1 ────────────────────────────────
-   2d  ○  Submit to SUO                         ▶
-  ╭───────────────────────────────────────────────╮
-  │ TODAY ─────────────────────────────────────── │  <- highlighted band
-  │      ○  Thaw T cells                          │
-  │      ○  Thaw KDM1A KO cells                   │
-  │      ○  Prepare ELISA samples              ▶  │
-  │      +  Add a task…                           │
-  ╰───────────────────────────────────────────────╯
-  UPCOMING · 2 ────────────────────────────────────
-  WED 22
-       ⚬  Draft SUO abstract figures
-  DONE · 2 ────────────────────────────────────────
-  10:04 ✓  Email the draft
-```
+![Today Tasks on the desktop](docs/hero.png)
+
+**Highlights**
+
+- Embedded in your wallpaper — no window chrome, no drop shadow, just the list on the desktop.
+- Click-through: interact with a task, but click *past* the empty space to your desktop icons.
+- Colors itself from your wallpaper, per display, and re-themes when you change it.
+- Date-aware sections: carried-over, today (highlighted), upcoming, done — with a dot-matrix progress meter.
+- Notes and clickable links on any task.
+- One widget on every monitor, all in sync.
+- Optional two-way sync with **Apple Reminders** (your iPhone) or a shared **Notion** list (a coworker).
+- A `today` command line tool, so you (or an AI assistant) can manage the list from the terminal.
 
 ---
 
