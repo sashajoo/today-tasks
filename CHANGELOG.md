@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.6 — 2026-07-22
+
+- **The accent color now comes from your wallpaper.** Each display's widget reads
+  that screen's desktop picture, extracts its most prominent color, and themes the
+  checkmarks, links, LED meter, and Today highlight to match; the shared section
+  takes the complementary color. Re-checks every ~20s, so changing your wallpaper
+  re-colors the widget. Grayscale wallpaper falls back to warm amber. A fixed
+  `--amber` in the CSS still overrides it. (Makes the app sensible to publish for
+  anyone, not just one wallpaper.)
+
 ## 1.5.1 — 2026-07-22
 
 - Fix: moving a task to the shared list no longer creates a duplicate. The

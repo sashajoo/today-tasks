@@ -275,24 +275,26 @@ confirm PyObjC installed: `python3 -c "import AppKit, WebKit, Quartz"`.
 
 ---
 
-## Making it your own
+## Colors
 
-The look is deliberately tuned to a warm wallpaper: light ink over a soft dark
-wash, with a single amber accent. To change the colors, edit the `:root` block at
-the top of `src/index.html` and re-run `./install.sh`:
+The accent color is picked automatically from your **wallpaper** — the widget
+reads each display's desktop picture, finds its most prominent color, and uses
+that for the checkmarks, links, progress meter, and Today highlight. The shared
+section uses the complementary color so it stays distinct. Change your wallpaper
+and the widget re-colors itself within about 20 seconds, and each display matches
+its own wallpaper.
+
+Grayscale or very muted wallpaper falls back to a warm amber.
+
+If you'd rather pin a fixed color, set `--amber` (and friends) in the `:root`
+block at the top of `src/index.html` and it will override the auto-detected one:
 
 ```css
---ink:   #f7f1e8;   /* main text */
---amber: #f7b06a;   /* accent: checkmarks, links, the + */
+--ink:   #f7f1e8;   /* main text (light, sits over a dark wash) */
+--amber: #f7b06a;   /* accent: checkmarks, links, the +, the meter */
 --stale: #e08a6a;   /* carried-over items */
+--teal:  #5ed3c4;   /* the shared section */
 ```
-
-The LED meter has its own two colors, set in the script near `const LED_ON`.
-For the classic green-phosphor look, use `#39ff88` for `LED_ON` and
-`rgba(57,255,136,0.13)` for `LED_OFF`.
-
-If your wallpaper is light rather than dark, lower the darkness of the wash in the
-`body { background: … }` rule just below.
 
 ---
 

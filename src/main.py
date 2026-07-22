@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Today Tasks — translucent floating task widget for macOS."""
 
+import colorsys
 import datetime
 import json
 import os
@@ -13,12 +14,18 @@ from AppKit import (
     NSApplication,
     NSApplicationActivationPolicyAccessory,
     NSBackingStoreBuffered,
+    NSBitmapImageRep,
+    NSCalibratedRGBColorSpace,
     NSColor,
+    NSCompositingOperationCopy,
+    NSDeviceRGBColorSpace,
     NSEvent,
     NSFloatingWindowLevel,
+    NSGraphicsContext,
     NSImage,
     NSEqualRects,
     NSMakeRect,
+    NSZeroRect,
     NSMenu,
     NSMenuItem,
     NSNormalWindowLevel,
@@ -54,6 +61,80 @@ HTML_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html
 
 def today_str():
     return datetime.date.today().isoformat()
+
+
+# ---- Wallpaper-derived accent -------------------------------------------
+
+def _hsv_hex(h, s, v):
+    r, g, b = colorsys.hsv_to_rgb(h % 1.0, max(0.0, min(1.0, s)), max(0.0, min(1.0, v)))
+    return "#%02x%02x%02x" % (int(r * 255), int(g * 255), int(b * 255))
+
+
+def _hsv_rgba(h, s, v, a):
+    r, g, b = colorsys.hsv_to_rgb(h % 1.0, max(0.0, min(1.0, s)), max(0.0, min(1.0, v)))
+    return "rgba(%d,%d,%d,%s)" % (int(r * 255), int(g * 255), int(b * 255), a)
+
+
+def dominant_hue(url, W=64, H=64):
+    """The most visually prominent saturated hue in a wallpaper image, or None
+    for a grayscale/absent image."""
+    if url is None:
+        return None
+    img = NSImage.alloc().initWithContentsOfURL_(url)
+    if img is None:
+        return None
+    rep = NSBitmapImageRep.alloc().initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel_(
+        None, W, H, 8, 4, True, False, NSDeviceRGBColorSpace, 0, 0)
+    if rep is None:
+        return None
+    ctx = NSGraphicsContext.graphicsContextWithBitmapImageRep_(rep)
+    if ctx is None:
+        return None
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.setCurrentContext_(ctx)
+    img.drawInRect_fromRect_operation_fraction_(
+        NSMakeRect(0, 0, W, H), NSZeroRect, NSCompositingOperationCopy, 1.0)
+    NSGraphicsContext.restoreGraphicsState()
+
+    bins = {}
+    for x in range(W):
+        for y in range(H):
+            c = rep.colorAtX_y_(x, y)
+            if c is None:
+                continue
+            c = c.colorUsingColorSpaceName_(NSCalibratedRGBColorSpace)
+            if c is None:
+                continue
+            r, g, b, _ = c.getRed_green_blue_alpha_(None, None, None, None)
+            h, s, v = colorsys.rgb_to_hsv(r, g, b)
+            if s < 0.18 or v < 0.15 or v > 0.96:
+                continue
+            key = int(h * 12) % 12
+            w = s * v
+            acc = bins.setdefault(key, [0.0, 0.0, 0.0, 0.0])
+            acc[0] += r * w; acc[1] += g * w; acc[2] += b * w; acc[3] += w
+    if not bins:
+        return None
+    best = max(bins.values(), key=lambda a: a[3])
+    r, g, b = best[0] / best[3], best[1] / best[3], best[2] / best[3]
+    h, _, _ = colorsys.rgb_to_hsv(r, g, b)
+    return h
+
+
+def theme_for_hue(h):
+    """Full CSS-variable palette from one hue (or the warm default if None)."""
+    if h is None:
+        h = 27 / 360.0  # warm amber default for grayscale wallpapers
+    accent_v, accent_s = 0.88, 0.60
+    return {
+        "--amber": _hsv_hex(h, accent_s, accent_v),
+        "--amber-glow": _hsv_rgba(h, accent_s, accent_v, "0.55"),
+        "--stale": _hsv_hex(h - 18 / 360.0, 0.62, 0.80),
+        "--teal": _hsv_hex(h + 0.5, 0.55, 0.82),
+        "--teal-glow": _hsv_rgba(h + 0.5, 0.55, 0.82, "0.55"),
+        "--teal-line": _hsv_rgba(h + 0.5, 0.55, 0.82, "0.4"),
+        "--teal-bg": _hsv_rgba(h + 0.5, 0.55, 0.82, "0.16"),
+    }
 
 
 def load_state():
@@ -166,7 +247,8 @@ class AppDelegate(NSObject):
             self.panels.append({"window": w, "webview": wv, "zones": None,
                                 "ct": False, "index": i, "want": w.frame(),
                                 "screenFrame": screen.frame(),
-                                "visibleFrame": sf})
+                                "visibleFrame": sf, "screen": screen,
+                                "wallURL": None, "theme": None})
 
         self.applyPinned()
         if not self.hidden:
@@ -221,6 +303,31 @@ class AppDelegate(NSObject):
             if p["webview"] is webview:
                 return p
         return None
+
+    # -- Wallpaper-matched accent -------------------------------------------
+
+    def refreshThemes_(self, timer):
+        """Recompute each panel's accent from its display's wallpaper when the
+        wallpaper changes."""
+        ws = NSWorkspace.sharedWorkspace()
+        for p in self.panels:
+            try:
+                url = ws.desktopImageURLForScreen_(p["screen"])
+            except Exception:
+                url = None
+            us = url.absoluteString() if url is not None else None
+            if us == p["wallURL"] and p["theme"] is not None:
+                continue
+            p["wallURL"] = us
+            p["theme"] = theme_for_hue(dominant_hue(url))
+            self.applyThemeToPanel_(p)
+
+    def applyThemeToPanel_(self, panel):
+        theme = panel.get("theme")
+        if not theme:
+            return
+        js = "window.applyTheme(%s)" % json.dumps(theme)
+        panel["webview"].evaluateJavaScript_completionHandler_(js, None)
 
     def screensChanged_(self, note):
         self.buildPanels()
@@ -309,6 +416,13 @@ class AppDelegate(NSObject):
         )
         self.runShareSync_(None)
 
+        # Re-derive the accent from each display's wallpaper when it changes.
+        self.themeTimer = (
+            NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                20.0, self, "refreshThemes:", None, True
+            )
+        )
+
     # -- JS -> Python bridge ------------------------------------------------
 
     def userContentController_didReceiveScriptMessage_(self, ucc, message):
@@ -391,6 +505,14 @@ class AppDelegate(NSObject):
 
     def webView_didFinishNavigation_(self, webview, nav):
         self.pushStateTo_(webview)
+        panel = self.panelForWebView_(webview)
+        if panel is not None:
+            if panel.get("theme") is None:
+                ws = NSWorkspace.sharedWorkspace()
+                url = ws.desktopImageURLForScreen_(panel["screen"])
+                panel["wallURL"] = url.absoluteString() if url is not None else None
+                panel["theme"] = theme_for_hue(dominant_hue(url))
+            self.applyThemeToPanel_(panel)
 
     def stateJS(self):
         cfg = self.state.get("notion") or {}
