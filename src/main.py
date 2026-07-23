@@ -432,6 +432,13 @@ class AppDelegate(NSObject):
                 tasks = json.loads(str(message.body()))
             except Exception:
                 return
+            # A task removed here (the ✕ button) must delete its backing
+            # reminder / Notion page, or the next sync re-imports it.
+            new_ids = {t.get("id") for t in tasks}
+            for old in self.state.get("tasks", []):
+                if old.get("id") not in new_ids and (old.get("rid") or old.get("nid")):
+                    self.state.setdefault("pendingDeletes", []).append(
+                        {"rid": old.get("rid"), "nid": old.get("nid")})
             self.state["tasks"] = tasks
             self.state["date"] = today_str()
             self.persist()

@@ -97,9 +97,9 @@ much of today is finished. It sweeps up whenever you check something off.
 
 ### Notes and links
 
-Every task has a drawer (the `▶`) for free text: details, context,
-reminders, whatever. Any URL you paste is detected automatically and shown as a
-clickable chip below the note. Notion links (`notion.so` or `notion://`) are
+Every task has a drawer (the `▶`) for free text: details, context, reminders,
+whatever. Any URL you paste is detected automatically and shown as a clickable
+chip below the note. Notion links (`notion.so` or `notion://`) are
 labeled "Notion"; others show the site name. Clicking a chip opens it in your
 default browser.
 
@@ -113,7 +113,7 @@ list: ask it to run these commands.
 
 ```
 today                                list everything, grouped by section
-today add "Draft the newsletter"             add to today
+today add "Draft the newsletter"     add to today
 today add "Renew library books" --when tomorrow
 today add "Book the offsite" --when +3   3 days out (also accepts 2026-07-30)
 today done 2                         check off task 2 (numbers come from `today`)
@@ -121,7 +121,7 @@ today undo 2                         un-check it
 today rm 4                           delete task 4
 today clear                          remove all checked-off tasks
 today when 3 tomorrow                reschedule task 3
-today note 5 "Bring the agenda"  set a note (URLs allowed)
+today note 5 "Bring the agenda"      set a note (URLs allowed)
 today note+ 5 "https://notion.so/…"  append a line to the note
 today note- 5                        clear the note
 ```
@@ -178,7 +178,7 @@ private to you.
 Owner (creates the list):
 
 ```
-today share new "Team"     # creates the Notion database + links you
+today share new "Team"           # creates the Notion database + links you
 ```
 
 It prints the database URL and its ID. In Notion, open that page and **share it
@@ -189,7 +189,7 @@ Coworker (joins the existing list):
 
 ```
 echo 'secret_theirtoken' > ~/.notion_token   # their own Notion integration
-today share join <DATABASE_ID> "Team"  # links their widget to the same list
+today share join <DATABASE_ID> "Team"        # links their widget to the same list
 ```
 
 Now you both have the widget's Shared section backed by the same tasks.
