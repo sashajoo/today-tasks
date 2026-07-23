@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.3 — 2026-07-23
+
+- Fix: a deleted task could reappear. Deleting a task now also deletes its
+  backing Apple Reminder or Notion page, and each sync processes those deletions
+  before importing, so a synced task can't be re-imported and come back.
+
 ## 1.6.2 — 2026-07-22
 
 - Remove the shared-list "Added by" attribution. It showed the Notion

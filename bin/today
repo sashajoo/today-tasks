@@ -78,6 +78,14 @@ def save(state):
     os.replace(tmp, DATA_FILE)
 
 
+def _forget(state, task):
+    """Remember to delete a task's backing reminder / Notion page on the next
+    sync, so a deleted task can't be re-imported and come back."""
+    rid, nid = task.get("rid"), task.get("nid")
+    if rid or nid:
+        state.setdefault("pendingDeletes", []).append({"rid": rid, "nid": nid})
+
+
 def parse_when(w):
     w = w.strip().lower()
     today = datetime.date.today()
@@ -372,6 +380,22 @@ def _notion_sync_locked(verbose):
     if not db_id:
         sys.exit("No shared list linked. Run: today share new \"NAME\"  (or share join DBID)")
     token = notion_token()
+
+    # Honor deletions BEFORE fetching, so a shared task deleted in the widget
+    # archives its Notion page and can't be re-imported on this cycle.
+    keep = []
+    for d in state.get("pendingDeletes", []):
+        nid = d.get("nid")
+        if nid:
+            try:
+                notion_archive(nid, token)
+            except SystemExit:
+                pass
+            nid = None
+        if d.get("rid"):
+            keep.append({"rid": d["rid"]})  # a personal task; Reminders sync handles it
+    state["pendingDeletes"] = keep
+
     remote = {r["nid"]: r for r in notion_fetch(db_id, token)}
 
     tasks = state["tasks"]
@@ -496,6 +520,23 @@ def _sync_locked(verbose):
     list_name = state.get("remindersList")
     if not list_name:
         sys.exit("No list linked yet. Run: today sync list \"Tasks\"")
+
+    # Honor deletions BEFORE fetching, so a task deleted in the widget deletes
+    # its reminder and can't be re-imported on this cycle.
+    keep = []
+    for d in state.get("pendingDeletes", []):
+        rid = d.get("rid")
+        if rid:
+            try:
+                osa('tell application "Reminders" to delete '
+                    '(first reminder whose id is "%s")' % rid)
+            except SystemExit:
+                pass
+            rid = None
+        if d.get("nid"):
+            keep.append({"nid": d["nid"]})  # a shared task; Notion sync handles it
+    state["pendingDeletes"] = keep
+
     remote = {r["rid"]: r for r in rem_fetch(list_name)}
     tasks = state["tasks"]
     today = today_str()
@@ -687,8 +728,12 @@ def main():
                 state["tasks"][i].pop("doneAt", None)
     elif cmd == "rm":
         for i in sorted(pick(state, args[1:]), reverse=True):
+            _forget(state, state["tasks"][i])
             del state["tasks"][i]
     elif cmd == "clear":
+        for t in state["tasks"]:
+            if t.get("done"):
+                _forget(state, t)
         state["tasks"] = [t for t in state["tasks"] if not t.get("done")]
     elif cmd == "sync":
         sub = args[1] if len(args) > 1 else ""
